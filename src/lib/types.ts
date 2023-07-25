@@ -42,7 +42,7 @@ export type FormFields = {
   distance: number;
   paymentMethod: string;
   details?: string;
-  type: typeof itemTypes[0];
+  type: (typeof itemTypes)[0];
 };
 
 export type DriverDetails = {
@@ -62,16 +62,19 @@ export interface currentDelivery extends FormFields {
 }
 
 export type SearchType = {
-  open: boolean;
   /** the LocationSearch component can only open for Pick-Up location
   and for Delivery location **/
   type: "pickupLocation" | "deliveryLocation";
   title?: "Pick Up" | "Delivery";
   selectedPlace?: PlaceResult;
-  courier: "car" | "truck";
+  courier?: "car" | "truck";
+  callback?: (place: PlaceResult) => void;
 };
 
 export type AddressPropsType = {
+  locationSearchRef: React.RefObject<{
+    open: (params: SearchType) => void;
+  }>;
   pickupLocation?: PlaceResult;
   deliveryLocation?: PlaceResult;
   setValue: (
@@ -90,16 +93,9 @@ export type HandleLocationSearch = (
 
 export type LocationSearchPropsType = {
   showMapRef: React.RefObject<ShowMapRefObject>;
-  search: SearchType;
   setValue: (
     name: keyof FormFields,
     value: FormFields[keyof FormFields]
-  ) => void;
-  handleLocationSearch: (
-    open: boolean,
-    title?: SearchType["title"],
-    type?: SearchType["type"],
-    selectedPlace?: PlaceResult
   ) => void;
 };
 

@@ -8,14 +8,16 @@ import { Input } from "antd";
 import { Icon } from "@iconify/react";
 import { motion } from "framer-motion";
 import Button from "antd/lib/button";
-import { HandleLocationSearch, PlaceResult } from "@lib/types";
+import { LocationSearchPropsType, PlaceResult, SearchType } from "@lib/types";
 import { LocationType, VehicleIcon } from "@lib/constants";
 import { AutoCompleteClassName } from "@comps/dashboard/AddressPicker";
+import { useAppSelector } from "@lib/redux/store";
 
 type showMapOptions = {
+  place?: google.maps.places.AutocompletePrediction;
   places: google.maps.GeocoderResult[];
   type: "deliveryLocation" | "pickupLocation";
-  courier: "truck" | "car";
+  // courier: "truck" | "car";
 };
 
 export interface ShowMapRefObject {
@@ -25,9 +27,11 @@ export interface ShowMapRefObject {
 const ShowOnMap = React.forwardRef<
   ShowMapRefObject,
   {
-    handleLocationSearch: HandleLocationSearch;
+    locationSearchRef: React.RefObject<{ open: (params: SearchType) => void }>;
+    setValue: LocationSearchPropsType["setValue"];
   }
 >(function ShowOnMap(props, ref) {
+  const courier = useAppSelector((state) => state.sessionStore.info.courier);
   // here works for the slideTransition
   const [unMount, setUnMount] = React.useState(false);
   // here works for what to render
@@ -35,7 +39,6 @@ const ShowOnMap = React.forwardRef<
   const [options, setOptions] = React.useState<showMapOptions>({
     places: [],
     type: "deliveryLocation",
-    courier: "car",
   });
 
   React.useImperativeHandle(
@@ -89,9 +92,9 @@ const ShowOnMap = React.forwardRef<
         <Wrapper apiKey={GOOGLE_API_KEY} render={render}>
           <Map
             className="h-[87%]"
-            markers={options.places}
-            type={options.type}
-            courier={options.courier}
+            markers={options?.places}
+            type={options?.type}
+            courier={courier}
             zoom={16}
             onClick={handleMapClick}
           />
@@ -105,28 +108,41 @@ const ShowOnMap = React.forwardRef<
           >
             <div
               className="form-group mb-5"
-              onClickCapture={() =>
-                props.handleLocationSearch(
-                  true,
-                  options.type.includes("delivery") ? "Delivery" : "Pick Up",
-                  options.type,
-                  selectAsPlace
-                )
-              }
+              onClickCapture={() => {
+                props.locationSearchRef.current?.open({
+                  title: options?.type.includes("delivery")
+                    ? "Delivery"
+                    : "Pick Up",
+                  type: options?.type,
+                  selectedPlace: selectAsPlace,
+                  callback: async (place) => {
+                    const Geocoder = new google.maps.Geocoder();
+                    const places = (
+                      await Geocoder.geocode({ placeId: place.place_id })
+                    ).results;
+
+                    setOptions({
+                      place,
+                      places,
+                      type: options.type,
+                    });
+                  },
+                });
+              }}
             >
               <div className="relative">
                 <div
                   className={
                     "absolute top-[40%] -translate-y-1/2 left-2 h-3 w-3 rounded-full " +
-                    LocationType[options.type]
+                    LocationType[options?.type]
                   }
                 >
-                  <Icon icon={VehicleIcon[options.courier]} height={24} />
+                  <Icon icon={VehicleIcon[courier ?? "car"]} height={24} />
                 </div>
                 <Input
                   className={AutoCompleteClassName}
                   placeholder={"Pick up location"}
-                  value={options.places[0].formatted_address}
+                  value={options?.places[0].formatted_address}
                   disabled
                 />
               </div>
@@ -135,6 +151,13 @@ const ShowOnMap = React.forwardRef<
               type="ghost"
               htmlType="submit"
               size="large"
+              onClick={() => {
+                setOpen(false);
+                props.setValue(
+                  options?.type as SearchType["type"],
+                  options?.place
+                );
+              }}
               className="!bg-secondary !text-black !w-full !rounded-lg !py-3 !h-auto !font-bold"
             >
               Select Location

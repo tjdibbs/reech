@@ -5,16 +5,36 @@ import React from "react";
 import { Icon } from "@iconify/react";
 import Loading from "@comps/Loading";
 import { useAppSelector } from "@lib/redux/store";
-import { LocationSearchPropsType, PlaceResult } from "@lib/types";
+import { LocationSearchPropsType, PlaceResult, SearchType } from "@lib/types";
 
-function LocationSearch(props: LocationSearchPropsType) {
-  const { search, handleLocationSearch, setValue, showMapRef } = props;
+function HighlightText(props: { originalText: string; search: string }) {
+  const searchTerms = [props.search, ...props.search.split(" ")];
+  // Combine the search terms into a regular expression with the 'g' flag for global search
+  const regex = new RegExp(searchTerms.join("|"), "gi");
+
+  // Use replace() with a callback function to wrap the matching text with a <span> element for highlighting
+  const highlightedText = props.originalText.replace(
+    regex,
+    (match) => `<span class="text-yellow-700 font-bold">${match}</span>`
+  );
+
+  return <div dangerouslySetInnerHTML={{ __html: highlightedText }} />;
+}
+
+const LocationSearch = React.forwardRef<
+  { open: (params: SearchType) => void },
+  LocationSearchPropsType
+>(function LocationSearch(props, ref) {
+  const { showMapRef, setValue } = props;
 
   const device = useAppSelector((state) => state.sessionStore.device);
+  const [open, setOpen] = React.useState<boolean>(false);
+  const [search, setSearch] = React.useState<SearchType>();
   const [loading, setLoading] = React.useState(false);
   const [inputValue, setInputValue] = React.useState(
-    search.selectedPlace?.description
+    search?.selectedPlace?.description
   );
+
   const [places, setPlaces] = React.useState<PlaceResult[]>([]);
 
   const findPlaces = async (place: string) => {
@@ -33,31 +53,38 @@ function LocationSearch(props: LocationSearchPropsType) {
     setPlaces(places.predictions);
   };
 
+  React.useImperativeHandle(ref, () => ({
+    open: (params) => {
+      setSearch(params);
+      setOpen(true);
+    },
+  }));
+
   React.useEffect(() => {
-    let selectedPlace = search.selectedPlace?.description ?? "";
-    if (search.open && selectedPlace) {
+    let selectedPlace = search?.selectedPlace?.description ?? "";
+    if (open && selectedPlace) {
       setInputValue(selectedPlace);
       findPlaces(selectedPlace);
     } else if (!selectedPlace) {
       setPlaces([]);
       setInputValue("");
     }
-  }, [search]);
+  }, [search, open]);
 
-  const openLocationOnMap = async (placeId: string) => {
-    handleLocationSearch(false, search.title, search.type, places[0]);
-
+  const openLocationOnMap = async (place: PlaceResult) => {
+    setOpen(false);
     // tell user before show locations on map
     setLoading(true);
 
     const Geocoder = new google.maps.Geocoder();
-    const placesData = (await Geocoder.geocode({ placeId })).results;
+    const placesData = (await Geocoder.geocode({ placeId: place.place_id }))
+      .results;
 
     setTimeout(() => {
       showMapRef.current?.showOnMap({
+        place,
         places: placesData,
-        type: search.type,
-        courier: search.courier,
+        type: search?.type as SearchType["type"],
       });
 
       setTimeout(() => {
@@ -68,19 +95,16 @@ function LocationSearch(props: LocationSearchPropsType) {
 
   const Content = (
     <div className="content h-full rounded-t-2xl overflow-auto px-3 pb-5">
-      <div
-        className="flex justify-end py-3"
-        onClick={() => handleLocationSearch(false)}
-      >
+      <div className="flex justify-end py-3" onClick={() => setOpen(false)}>
         <Button type="ghost" className="text-primary font-bold rounded-lg">
           Cancel
         </Button>
       </div>
 
       <div className="title font-extrabold text-gray-700 text-lg mb-3 uppercase text-center">
-        {search.title} Location
+        {search?.title} Location
       </div>
-      {search.open && (
+      {open && (
         <Input
           onChange={(e) => {
             setInputValue(e.target.value);
@@ -90,7 +114,7 @@ function LocationSearch(props: LocationSearchPropsType) {
           value={inputValue}
           bordered
           placeholder={
-            "Enter " + search.title?.toLocaleLowerCase() + " location"
+            "Enter " + search?.title?.toLocaleLowerCase() + " location"
           }
           id="search-location-input"
           autoFocus
@@ -118,7 +142,7 @@ function LocationSearch(props: LocationSearchPropsType) {
                     {
                       label: "Show on map",
                       key: place.place_id,
-                      onClick: () => openLocationOnMap(place.place_id),
+                      onClick: () => openLocationOnMap(place),
                     },
                   ],
                 }}
@@ -129,14 +153,20 @@ function LocationSearch(props: LocationSearchPropsType) {
                 <CardActionArea
                   className="!px-3 shadow-sm !bg-primary/[0.03] !rounded-lg !py-2 !border-b !border-gray-400"
                   onClick={() => {
-                    handleLocationSearch(false);
-                    setValue(search.type, place);
+                    setOpen(false);
+                    if (!search?.callback)
+                      return setValue(search!?.type, place);
+                    search?.callback(place);
                   }}
                 >
-                  <b className="text-blue-900">
+                  <HighlightText
+                    originalText={place.description}
+                    search={inputValue as string}
+                  />
+                  {/* <b className="text-blue-900">
                     {place.description.substring(0, inputValue?.length)}
-                  </b>{" "}
-                  {place.description.slice(inputValue!.length)}
+                  </b>
+                  {place.description.slice(inputValue!.length)} */}
                 </CardActionArea>
               </Dropdown>
             </motion.div>
@@ -144,7 +174,7 @@ function LocationSearch(props: LocationSearchPropsType) {
         </AnimatePresence>
       </div>
       <AnimatePresence>
-        {inputValue && (
+        {inputValue && !search?.callback && (
           <motion.div
             className="action"
             animate={{ y: 0, opacity: 1 }}
@@ -153,7 +183,7 @@ function LocationSearch(props: LocationSearchPropsType) {
             <Button
               type="primary"
               size="large"
-              onClickCapture={() => openLocationOnMap(places[0].place_id)}
+              onClickCapture={() => openLocationOnMap(places[0])}
               className="!bg-primary text-lg font-bold mt-5 flex items-center gap-x-2"
             >
               <Icon icon={"material-symbols:map-outline"} height={24} />
@@ -171,39 +201,46 @@ function LocationSearch(props: LocationSearchPropsType) {
 
       {device === "desktop" ? (
         <React.Fragment>
-          <AnimatePresence>
-            {search.open && (
-              <motion.div
-                animate={{ opacity: 1 }}
-                initial={{ opacity: 0 }}
-                exit={{ opacity: 0 }}
-                onClick={() => handleLocationSearch(false)}
-                className="backdrop absolute left-0 h-full w-full cursor-pointer bg-black/40 z-[99999] top-0"
-              />
-            )}
-          </AnimatePresence>
-          <AnimatePresence>
-            {search.open && (
-              <motion.div
-                {...({
-                  initial: { y: 500, position: "fixed" },
-                  animate: { y: 0 },
-                  exit: { y: 500 },
-                  transition: { type: "just", duration: 0.5 },
-                  className:
-                    "fixed bottom-0 h-[500px] w-full left-0 z-[99999] rounded-t-2xl shadow-lg bg-white",
-                } as MotionProps)}
-              >
-                {Content}
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <div
+            className={
+              "location-search-wrapper " +
+              (open ? "absolute h-full w-full overflow-hidden bottom-0" : "h-0")
+            }
+          >
+            <AnimatePresence>
+              {open && (
+                <motion.div
+                  animate={{ opacity: 1 }}
+                  initial={{ opacity: 0 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setOpen(false)}
+                  className="backdrop absolute left-0 h-full w-full cursor-pointer bg-black/40 z-[99999] top-0"
+                />
+              )}
+            </AnimatePresence>
+            <AnimatePresence>
+              {open && (
+                <motion.div
+                  {...({
+                    initial: { y: 500 },
+                    animate: { y: 0 },
+                    exit: { y: 500 },
+                    transition: { type: "just", duration: 0.5 },
+                    className:
+                      "absolute bottom-0 h-[500px] w-full left-0 z-[99999] rounded-t-2xl shadow-lg bg-white",
+                  } as MotionProps)}
+                >
+                  {Content}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </React.Fragment>
       ) : (
         <SwipeableDrawer
-          onClose={() => handleLocationSearch(false)}
-          onOpen={() => handleLocationSearch(true)}
-          open={search.open}
+          onClose={() => setOpen(false)}
+          onOpen={() => setOpen(true)}
+          open={open}
           anchor={"bottom"}
           onEnded={() => alert("ended")}
           ModalProps={{ style: { zIndex: 9999 } }}
@@ -218,6 +255,6 @@ function LocationSearch(props: LocationSearchPropsType) {
       )}
     </React.Fragment>
   );
-}
+});
 
 export default LocationSearch;

@@ -23,7 +23,8 @@ code {
 }
 
 body {
-  background-color: #f6fcff !important;
+  /* background-color: #f6fcff !important; */
+  background-color: #fff;
 }
 
 .ant-select-dropdown,

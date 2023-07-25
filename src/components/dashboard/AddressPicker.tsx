@@ -12,14 +12,20 @@ import {
 } from "@lib/types";
 
 function AddressPicker(props: AddressPropsType) {
-  const { pickupLocation, deliveryLocation, setValue, errors } = props;
-  const [search, setSearch] = React.useState<SearchType>({
-    open: false,
-    courier: "car",
-    type: "deliveryLocation",
-  });
+  const {
+    pickupLocation,
+    deliveryLocation,
+    setValue,
+    errors,
+    locationSearchRef,
+  } = props;
+  // const [search, setSearch] = React.useState<SearchType>({
+  //   open: false,
+  //   courier: "car",
+  //   type: "deliveryLocation",
+  // });
 
-  const showMapRef = React.useRef<ShowMapRefObject>(null);
+  // const showMapRef = React.useRef<ShowMapRefObject>(null);
 
   /**
    * * get the description of the user current Location with the lat and lng provided to it
@@ -75,27 +81,27 @@ function AddressPicker(props: AddressPropsType) {
     }, console.error);
   }, [getReverseGeocodingData]);
 
-  /**
-   * @description // * The parameter tell the function which location the user wants to type and set an identity state for it
-   * @param open // * tells the function to either close or open the LocationSearchComponent
-   * @param type
-   */
-  const handleLocationSearch: HandleLocationSearch = (
-    open,
-    title,
-    type = "deliveryLocation",
-    selectedPlace
-  ) => {
-    setSearch({
-      ...search,
-      open,
-      title,
-      type,
-      selectedPlace: open
-        ? selectedPlace ?? props[type as NonNullable<SearchType["type"]>]
-        : undefined,
-    });
-  };
+  // /**
+  //  * @description // * The parameter tell the function which location the user wants to type and set an identity state for it
+  //  * @param open // * tells the function to either close or open the LocationSearchComponent
+  //  * @param type
+  //  */
+  // const handleLocationSearch: HandleLocationSearch = (
+  //   open,
+  //   title,
+  //   type = "deliveryLocation",
+  //   selectedPlace
+  // ) => {
+  //   setSearch({
+  //     ...search,
+  //     open,
+  //     title,
+  //     type,
+  //     selectedPlace: open
+  //       ? selectedPlace ?? props[type as NonNullable<SearchType["type"]>]
+  //       : undefined,
+  //   });
+  // };
 
   return (
     <>
@@ -107,7 +113,11 @@ function AddressPicker(props: AddressPropsType) {
         <div
           className="form-group"
           onClickCapture={() =>
-            handleLocationSearch(true, "Pick Up", "pickupLocation")
+            locationSearchRef.current?.open({
+              type: "pickupLocation",
+              title: "Pick Up",
+              selectedPlace: deliveryLocation,
+            })
           }
         >
           <div className="relative">
@@ -126,7 +136,11 @@ function AddressPicker(props: AddressPropsType) {
         <div
           className="form-group"
           onClickCapture={() =>
-            handleLocationSearch(true, "Delivery", "deliveryLocation")
+            locationSearchRef.current?.open({
+              type: "deliveryLocation",
+              title: "Delivery",
+              selectedPlace: deliveryLocation,
+            })
           }
         >
           <div className="relative">
@@ -143,10 +157,10 @@ function AddressPicker(props: AddressPropsType) {
           </div>
         </div>
       </motion.div>
-      <LocationSearch
+      {/* <LocationSearch
         {...{ setValue, search, handleLocationSearch, showMapRef }}
       />
-      <ShowOnMap ref={showMapRef} {...{ handleLocationSearch }} />
+      <ShowOnMap ref={showMapRef} {...{ handleLocationSearch }} /> */}
     </>
   );
 }
