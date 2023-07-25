@@ -60,6 +60,8 @@ function Dashboard() {
     },
   ]);
 
+  console.log({ GOOGLE_API_KEY });
+
   return (
     <div className={"wrapper relative"}>
       <AppDrawer />
