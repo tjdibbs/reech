@@ -152,7 +152,7 @@ const ShowOnMap = React.forwardRef<
               htmlType="submit"
               size="large"
               onClick={() => {
-                setOpen(false);
+                setUnMount(true);
                 props.setValue(
                   options?.type as SearchType["type"],
                   options?.place
